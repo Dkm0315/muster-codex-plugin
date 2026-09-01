@@ -73,6 +73,27 @@ test("keeps separately rendered files as separate blocks instead of replacing th
   }
 });
 
+test("keeps twenty sequential file renders visible as twenty separate blocks", async () => {
+  const dataRoot = await mkdtemp(join(tmpdir(), "muster-render-twenty-"));
+  const root = await fixtureRepo();
+  const previous = process.env.PLUGIN_DATA;
+  process.env.PLUGIN_DATA = dataRoot;
+  try {
+    let history;
+    for (let index = 1; index <= 20; index += 1) {
+      const path = `src/file-${String(index).padStart(2, "0")}.ts`;
+      await writeFile(join(root, path), `export const value${index} = ${index};\n`, "utf8");
+      history = await appendFileRender(root, path);
+    }
+    assert.equal(history.files.length, 20);
+    assert.equal(history.files[0].path, "src/file-01.ts");
+    assert.equal(history.files[19].path, "src/file-20.ts");
+    assert.equal(history.files.every((file) => file.stats.added === 1 && file.stats.deleted === 0), true);
+  } finally {
+    if (previous === undefined) delete process.env.PLUGIN_DATA; else process.env.PLUGIN_DATA = previous;
+  }
+});
+
 test("refuses secret files and paths outside the workspace", async () => {
   const root = await fixtureRepo();
   await writeFile(join(root, ".env"), "SECRET=value\n", "utf8");
