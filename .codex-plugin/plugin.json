@@ -1,6 +1,6 @@
 {
   "name": "muster-codex-plugin",
-  "version": "0.1.0",
+  "version": "0.1.0+codex.20260901173202",
   "description": "Show full-file live change context and an evidence-backed Kanban during Codex work without patching the Codex app.",
   "author": {
     "name": "Dhairya Marwaha",

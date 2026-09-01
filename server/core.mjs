@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, isAbsolute, relative, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -12,10 +12,62 @@ const SECRET_NAME = /^(?:\.env(?:\..*)?|credentials?|secrets?|id_[a-z0-9_-]+|.*\
 export const LANES = ["backlog", "ready", "running", "review", "done"];
 
 export function pluginDataRoot() {
+  if (process.env.PLUGIN_DATA) return resolve(process.env.PLUGIN_DATA);
   const codexHome = process.env.CODEX_HOME
     ? resolve(process.env.CODEX_HOME)
     : resolve(homedir(), ".codex");
   return resolve(codexHome, "state", "plugins", "muster-codex-plugin");
+}
+
+function activityText(value) {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string") return value;
+  try { return JSON.stringify(value, null, 2); } catch { return String(value); }
+}
+
+function activityCommand(event) {
+  const input = event.toolInput && typeof event.toolInput === "object" ? event.toolInput : {};
+  return String(input.cmd || input.command || input.path || input.skill || input.name || input.prompt || "");
+}
+
+export async function readActivityTimeline(cwdInput) {
+  const cwd = resolve(cwdInput);
+  const directory = resolve(pluginDataRoot(), "events");
+  let names = [];
+  try { names = (await readdir(directory)).filter((name) => name.endsWith(".jsonl")); } catch { names = []; }
+  const rows = [];
+  for (const name of names.slice(-50)) {
+    let content = "";
+    try { content = await readFile(resolve(directory, name), "utf8"); } catch { continue; }
+    for (const line of content.split("\n").filter(Boolean).slice(-500)) {
+      try {
+        const event = JSON.parse(line);
+        if (resolve(String(event.cwd || ".")) === cwd && event.activityId) rows.push(event);
+      } catch { /* Ignore partial hook records. */ }
+    }
+  }
+  rows.sort((left, right) => String(left.at).localeCompare(String(right.at)));
+  const grouped = new Map();
+  for (const row of rows) {
+    const id = String(row.activityId);
+    const current = grouped.get(id) || { id, startedAt: "", completedAt: "", toolName: "", command: "", input: "", output: "", status: "running", changedFiles: [] };
+    current.toolName = String(row.toolName || current.toolName || "Tool");
+    current.command = activityCommand(row) || current.command;
+    current.input = activityText(row.toolInput) || current.input;
+    if (row.phase === "before") current.startedAt = String(row.at || "");
+    if (row.phase === "after") {
+      current.completedAt = String(row.at || "");
+      current.output = activityText(row.toolResponse);
+      current.status = String(row.status || "completed");
+      current.changedFiles = Array.isArray(row.changedFiles) ? row.changedFiles.map(String) : [];
+    }
+    grouped.set(id, current);
+  }
+  const items = [...grouped.values()].slice(-200).reverse().map((item) => ({
+    ...item,
+    durationMs: item.startedAt && item.completedAt ? Math.max(0, Date.parse(item.completedAt) - Date.parse(item.startedAt)) : null,
+  }));
+  return { kind: "activity", cwd, generatedAt: new Date().toISOString(), items };
 }
 
 export function boardKey(cwd) {

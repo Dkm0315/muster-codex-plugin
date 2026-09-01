@@ -55,6 +55,23 @@
   .blocked { color: light-dark(#9b651d, #d4a85f) !important; }
   .empty { padding: 18px 4px; color: light-dark(#999, #555); font-size: 11px; text-align: center; }
   .board-footer { padding: 9px 12px; border-top: 1px solid light-dark(#e3e3e3, #292929); color: light-dark(#666, #777); font-size: 11px; }
+  .activity-toolbar { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border-bottom: 1px solid light-dark(#e5e5e5, #292929); }
+  .activity-toolbar .spacer { flex: 1; }
+  .activity-live { display: inline-flex; align-items: center; gap: 6px; color: light-dark(#287a3d, #63c174); font-size: 11px; }
+  .activity-live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 4px light-dark(#e2f4e6, #173222); }
+  .activity-list { max-height: 660px; overflow: auto; background: light-dark(#f7f7f5, #080909); }
+  .activity-item { border-bottom: 1px solid light-dark(#e3e3e0, #252829); background: light-dark(#fff, #111314); }
+  .activity-item.running { background: light-dark(#eef4ff, #101b2c); }
+  .activity-summary { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; }
+  .activity-tool { color: light-dark(#4771b5, #8baaf0); font: 11px "SFMono-Regular", Menlo, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .activity-command { min-width: 0; color: light-dark(#252525, #d7d7d7); font: 11px/1.4 "SFMono-Regular", Menlo, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .activity-state { color: light-dark(#666, #888); font-size: 10px; white-space: nowrap; }
+  .activity-item.running .activity-state { color: light-dark(#2f63c5, #82a9ff); }
+  .activity-detail { margin: 0; padding: 0 12px 11px 114px; }
+  .activity-detail summary { cursor: pointer; color: light-dark(#666, #888); font-size: 10px; }
+  .activity-detail pre { max-height: 260px; margin: 8px 0 0; overflow: auto; padding: 9px 10px; border-radius: 7px; background: light-dark(#f1f1ef, #090b0c); color: light-dark(#333, #c9ced1); font: 10px/1.5 "SFMono-Regular", Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
+  .activity-files { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+  .activity-files code { padding: 2px 5px; border-radius: 4px; background: light-dark(#edf0f5, #1a2029); color: light-dark(#3f5e8d, #91acd5); font-size: 9px; }
   .error { padding: 18px; color: light-dark(#9c2828, #ff8b8b); }
   @media (max-width: 850px) {
     .file-layout { grid-template-columns: 1fr; }
@@ -68,6 +85,7 @@
     const root = document.getElementById("muster-root");
     let data = null;
     let fileMode = "working";
+    let activityTimer = null;
     let nextRequestId = 1;
     const pending = new Map();
 
@@ -194,10 +212,32 @@
       };
     }
 
+    function renderActivity(value) {
+      const items = value.items || [];
+      const body = items.map((item, index) => {
+        const command = item.command || item.input || "No input reported";
+        const output = item.output || (item.status === "running" ? "Waiting for output…" : "No output reported.");
+        const timing = item.durationMs === null ? item.status : `${item.status} · ${item.durationMs} ms`;
+        const files = (item.changedFiles || []).map((path) => `<code>${escapeHtml(path)}</code>`).join("");
+        return `<article class="activity-item ${item.status === "running" ? "running" : ""}">
+          <div class="activity-summary"><span class="activity-tool">${escapeHtml(item.toolName)}</span><span class="activity-command">${escapeHtml(command)}</span><span class="activity-state">${escapeHtml(timing)}</span></div>
+          <details class="activity-detail" ${item.status === "running" || index === 0 ? "open" : ""}><summary>Output and evidence</summary><pre>${escapeHtml(output)}</pre>${files ? `<div class="activity-files">${files}</div>` : ""}</details>
+        </article>`;
+      }).join("") || `<div class="empty">No execution events yet. The next command, tool, or skill will appear before it runs.</div>`;
+      root.innerHTML = `<section class="muster-shell"><header class="activity-toolbar"><strong>Live execution</strong><span class="muster-muted">${items.length} events</span><span class="spacer"></span><span class="activity-live">observing</span></header><div class="activity-list">${body}</div></section>`;
+      if (!activityTimer) activityTimer = setInterval(async () => {
+        try {
+          const result = await request("tools/call", { name: "muster_render_activity", arguments: { cwd: value.cwd } });
+          if (result?.structuredContent?.kind === "activity") { data = result.structuredContent; renderActivity(data); }
+        } catch { /* Keep the last visible timeline while the host reconnects. */ }
+      }, 750);
+    }
+
     function render(value) {
       if (!value) { root.innerHTML = `<div class="muster-shell"><div class="muster-muted" style="padding:18px">Waiting for Muster data…</div></div>`; return; }
       if (value.kind === "file") renderFile(value);
       else if (value.kind === "board") renderBoard(value);
+      else if (value.kind === "activity") renderActivity(value);
       else root.innerHTML = `<div class="muster-shell error">Unsupported Muster view.</div>`;
     }
 

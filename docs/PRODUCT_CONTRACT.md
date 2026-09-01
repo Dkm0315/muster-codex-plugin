@@ -2,13 +2,17 @@
 
 ## Live work
 
-When `$muster-live` is explicitly tagged:
+When `$muster-live` or the Muster Live Work plugin is explicitly tagged:
 
-1. Native Codex narration, commands, stdout, stderr, exit status, and edit events remain visible in chronological order.
-2. After a file mutation, the complete changed file is rendered automatically in the conversation through the standard MCP App result.
-3. Unchanged code remains visible. Removed and added lines are decorated inline. Working, Before, and Split views are available.
-4. Binary, secret, ignored credential, out-of-workspace, and oversized files fail closed.
-5. The plugin does not add approvals or change the user's permission mode.
+1. `muster_render_activity` opens before other tool work and polls the local event ledger while the task runs.
+2. Every terminal command, tool, and skill invocation is persisted in `PreToolUse` with `running` state before execution.
+3. `PostToolUse` supplies bounded, redacted output, completion time, duration and changed-file evidence.
+4. Native Codex narration, commands, stdout, stderr, exit status, and edit events remain visible in chronological order.
+5. After a file mutation, the complete changed file is rendered automatically in the conversation through the standard MCP App result.
+6. Unchanged code remains visible. Removed and added lines are decorated inline. Working, Before, and Split views are available.
+7. Binary, secret, ignored credential, out-of-workspace, and oversized files fail closed.
+8. Activation persists for the current task until `$muster-off`; unrelated tasks remain dormant.
+9. The plugin does not add approvals or change the user's permission mode.
 
 ## Board
 

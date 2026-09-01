@@ -21154,7 +21154,7 @@ var StdioServerTransport = class {
 // server/core.mjs
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, isAbsolute, relative, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -21163,8 +21163,70 @@ var MAX_FILE_BYTES = 4e5;
 var SECRET_NAME = /^(?:\.env(?:\..*)?|credentials?|secrets?|id_[a-z0-9_-]+|.*\.(?:pem|key|p12|pfx))$/i;
 var LANES = ["backlog", "ready", "running", "review", "done"];
 function pluginDataRoot() {
+  if (process.env.PLUGIN_DATA) return resolve(process.env.PLUGIN_DATA);
   const codexHome = process.env.CODEX_HOME ? resolve(process.env.CODEX_HOME) : resolve(homedir(), ".codex");
   return resolve(codexHome, "state", "plugins", "muster-codex-plugin");
+}
+function activityText(value) {
+  if (value === void 0 || value === null) return "";
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+function activityCommand(event) {
+  const input = event.toolInput && typeof event.toolInput === "object" ? event.toolInput : {};
+  return String(input.cmd || input.command || input.path || input.skill || input.name || input.prompt || "");
+}
+async function readActivityTimeline(cwdInput) {
+  const cwd = resolve(cwdInput);
+  const directory = resolve(pluginDataRoot(), "events");
+  let names = [];
+  try {
+    names = (await readdir(directory)).filter((name) => name.endsWith(".jsonl"));
+  } catch {
+    names = [];
+  }
+  const rows = [];
+  for (const name of names.slice(-50)) {
+    let content = "";
+    try {
+      content = await readFile(resolve(directory, name), "utf8");
+    } catch {
+      continue;
+    }
+    for (const line of content.split("\n").filter(Boolean).slice(-500)) {
+      try {
+        const event = JSON.parse(line);
+        if (resolve(String(event.cwd || ".")) === cwd && event.activityId) rows.push(event);
+      } catch {
+      }
+    }
+  }
+  rows.sort((left, right) => String(left.at).localeCompare(String(right.at)));
+  const grouped = /* @__PURE__ */ new Map();
+  for (const row of rows) {
+    const id = String(row.activityId);
+    const current = grouped.get(id) || { id, startedAt: "", completedAt: "", toolName: "", command: "", input: "", output: "", status: "running", changedFiles: [] };
+    current.toolName = String(row.toolName || current.toolName || "Tool");
+    current.command = activityCommand(row) || current.command;
+    current.input = activityText(row.toolInput) || current.input;
+    if (row.phase === "before") current.startedAt = String(row.at || "");
+    if (row.phase === "after") {
+      current.completedAt = String(row.at || "");
+      current.output = activityText(row.toolResponse);
+      current.status = String(row.status || "completed");
+      current.changedFiles = Array.isArray(row.changedFiles) ? row.changedFiles.map(String) : [];
+    }
+    grouped.set(id, current);
+  }
+  const items = [...grouped.values()].slice(-200).reverse().map((item) => ({
+    ...item,
+    durationMs: item.startedAt && item.completedAt ? Math.max(0, Date.parse(item.completedAt) - Date.parse(item.startedAt)) : null
+  }));
+  return { kind: "activity", cwd, generatedAt: (/* @__PURE__ */ new Date()).toISOString(), items };
 }
 function boardKey(cwd) {
   return createHash("sha256").update(resolve(cwd)).digest("hex").slice(0, 20);
@@ -21350,6 +21412,23 @@ var renderMeta = (invoking, invoked) => ({
   "openai/toolInvocation/invoked": invoked,
   ui: { resourceUri: UI_URI }
 });
+server.registerTool(
+  "muster_render_activity",
+  {
+    title: "Render live execution activity",
+    description: "Open the live pre/post execution timeline for the active workspace. Shows terminal commands, tools, skills, bounded output, timestamps and changed files while the tagged task runs.",
+    inputSchema: { cwd: external_exports.string().min(1).describe("Absolute active workspace root") },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    _meta: renderMeta("Opening live execution\u2026", "Live execution opened.")
+  },
+  async ({ cwd }) => {
+    const activity = await readActivityTimeline(cwd);
+    return {
+      structuredContent: activity,
+      content: [{ type: "text", text: `Rendered ${activity.items.length} live execution event(s) for ${activity.cwd}.` }]
+    };
+  }
+);
 server.registerTool(
   "muster_render_full_file",
   {

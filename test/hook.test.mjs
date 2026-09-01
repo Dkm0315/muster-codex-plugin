@@ -53,17 +53,55 @@ test("hooks remain dormant without tags and activate only for the tagged session
   assert.match(activated, /muster_render_full_file/);
   assert.match(activated, /muster_prepare_board/);
 
+  const persistent = runHook(codexHome, {
+    session_id: "session-live",
+    turn_id: "turn-3",
+    cwd: workspace,
+    hook_event_name: "UserPromptSubmit",
+    prompt: "Continue the same task.",
+  });
+  assert.match(persistent, /Muster Live is active for this task/);
+
+  const before = runHook(codexHome, {
+    session_id: "session-live",
+    turn_id: "turn-3",
+    tool_use_id: "tool-1",
+    cwd: workspace,
+    hook_event_name: "PreToolUse",
+    tool_name: "Bash",
+    tool_input: { command: "echo password=super-secret" },
+  });
+  assert.match(before, /recorded this action before execution/);
+
   await writeFile(join(workspace, "src", "demo.ts"), "export const value = 2;\n", "utf8");
   const observed = runHook(codexHome, {
     session_id: "session-live",
     turn_id: "turn-2",
+    tool_use_id: "tool-1",
     cwd: workspace,
     hook_event_name: "PostToolUse",
     tool_name: "apply_patch",
     tool_input: { command: "patch" },
-    tool_response: { ok: true },
+    tool_response: { ok: true, output: "token=unsafe-value" },
   });
   assert.match(observed, /src\/demo\.ts/);
   const events = await readFile(join(codexHome, "state", "plugins", "muster-codex-plugin", "events", "session-live.jsonl"), "utf8");
   assert.match(events, /"changedFiles":\["src\/demo\.ts"\]/);
+  assert.match(events, /"phase":"before"/);
+  assert.match(events, /"status":"running"/);
+  assert.doesNotMatch(events, /super-secret|unsafe-value/);
+  assert.match(events, /\[REDACTED\]/);
+});
+
+test("plugin mention activates live observation without a dollar tag", async () => {
+  const codexHome = await mkdtemp(join(tmpdir(), "muster-hook-plugin-"));
+  const workspace = await mkdtemp(join(tmpdir(), "muster-hook-plugin-workspace-"));
+  const output = runHook(codexHome, {
+    session_id: "session-plugin",
+    turn_id: "turn-plugin",
+    cwd: workspace,
+    hook_event_name: "UserPromptSubmit",
+    prompt: "[@Muster Live Work](plugin://muster-codex-plugin@personal) show this work",
+  });
+  assert.match(output, /muster_render_activity/);
 });

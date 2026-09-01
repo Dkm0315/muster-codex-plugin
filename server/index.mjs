@@ -6,6 +6,7 @@ import { z } from "zod/v3";
 import {
   createBoard,
   loadBoard,
+  readActivityTimeline,
   readFullFileSnapshot,
   saveBoard,
   transitionBoard,
@@ -37,6 +38,24 @@ const renderMeta = (invoking, invoked) => ({
   "openai/toolInvocation/invoked": invoked,
   ui: { resourceUri: UI_URI },
 });
+
+server.registerTool(
+  "muster_render_activity",
+  {
+    title: "Render live execution activity",
+    description: "Open the live pre/post execution timeline for the active workspace. Shows terminal commands, tools, skills, bounded output, timestamps and changed files while the tagged task runs.",
+    inputSchema: { cwd: z.string().min(1).describe("Absolute active workspace root") },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    _meta: renderMeta("Opening live execution…", "Live execution opened."),
+  },
+  async ({ cwd }) => {
+    const activity = await readActivityTimeline(cwd);
+    return {
+      structuredContent: activity,
+      content: [{ type: "text", text: `Rendered ${activity.items.length} live execution event(s) for ${activity.cwd}.` }],
+    };
+  },
+);
 
 server.registerTool(
   "muster_render_full_file",

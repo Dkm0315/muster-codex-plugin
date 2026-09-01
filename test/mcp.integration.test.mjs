@@ -39,6 +39,7 @@ test("MCP server exposes render and board tools with UI resources", async () => 
     const tools = await client.listTools();
     const names = tools.tools.map((tool) => tool.name);
     assert.ok(names.includes("muster_render_full_file"));
+    assert.ok(names.includes("muster_render_activity"));
     assert.ok(names.includes("muster_prepare_board"));
     assert.ok(names.includes("muster_render_board"));
     assert.ok(names.includes("muster_transition_task"));
@@ -66,6 +67,8 @@ test("MCP server exposes render and board tools with UI resources", async () => 
     const ui = await client.readResource({ uri: "ui://muster/live-work-v1.html" });
     assert.match(ui.contents[0].text, /Full file/);
     assert.match(ui.contents[0].text, /Cards move from observed events/);
+    assert.match(ui.contents[0].text, /Live execution/);
+    assert.match(ui.contents[0].text, /muster_render_activity/);
   } finally {
     await client.close();
   }

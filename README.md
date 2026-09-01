@@ -2,15 +2,16 @@
 
 Muster Live Work is an isolated Codex plugin for two explicit workflows:
 
-- `$muster-live` keeps command execution visible and renders the **complete changed file** after edits, with Working, Before, and Split views.
+- `$muster-live` opens a polling execution timeline before work starts, records every tool in `PreToolUse`, completes it from `PostToolUse`, and renders the **complete changed file** after edits.
 - `$muster-board` creates an evidence-backed Kanban from tasks mentioned in the prompt, or an empty board when no tasks are mentioned.
 
 The plugin does not patch the Codex app, rewrite Codex configuration, modify rollout files, migrate threads, or write state into repositories.
 
 ## Safety model
 
-- Both skills are explicit-only. Ordinary Codex turns are unaffected.
-- Hooks remain dormant unless the current prompt contains `$muster-live` or `$muster-board`.
+- Both skills are explicit-only. Ordinary Codex tasks are unaffected.
+- `$muster-live` or the Muster Live Work plugin mention activates observation for the current task until `$muster-off` is written.
+- Inputs and outputs are bounded and common credential/token forms are redacted before persistence.
 - Hook state and boards live under `CODEX_HOME/state/plugins/muster-codex-plugin/`.
 - Full-file rendering is restricted to regular text files inside the active workspace.
 - `.env`, credential, key, certificate, and out-of-workspace files are rejected.
@@ -27,11 +28,12 @@ hooks/hooks.json                Turn-scoped observation hooks
 scripts/observe_hook.py         Non-blocking event recorder
 server/                         Local stdio MCP server
 dist/server.mjs                 Bundled dependency-free runtime entry
-ui/workbench.html               MCP App UI for files and boards
+ui/workbench.html               MCP App UI for execution, files and boards
 ```
 
 ## Tools
 
+- `muster_render_activity(cwd)` — opens the polling pre/post execution timeline with commands, tools, skills, output, duration and changed-file evidence.
 - `muster_render_full_file(cwd, path)` — reads the complete working file and `HEAD` version, returns diff statistics and a safe codebase index, and renders the file UI.
 - `muster_prepare_board(cwd, tasks)` — creates a dependency-aware board without starting work.
 - `muster_render_board(cwd)` — renders the current board.
@@ -64,6 +66,8 @@ $muster-live $muster-board Implement these independent tasks visibly and keep th
 ## Host placement
 
 The plugin uses the standard MCP Apps UI returned by MCP tools. Codex controls whether that UI appears inline or in another supported presentation. The plugin deliberately does not patch native sidebars or renderer internals, keeping it resilient to Codex updates.
+
+The live timeline must be opened once at the beginning of an activated task. Its MCP App then polls the local hook ledger every 750 ms. `PreToolUse` blocks tool execution long enough to persist the pending record, so the command appears before its post-execution output is available.
 
 ## Development
 

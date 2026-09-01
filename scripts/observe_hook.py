@@ -14,6 +14,17 @@ from typing import Any
 
 MAX_VALUE_CHARS = 64_000
 SAFE_ID = re.compile(r"[^A-Za-z0-9._-]+")
+ACTIVATION = re.compile(
+    r"(?:^|\s)\$muster-live\b|plugin://muster-codex-plugin@personal|Muster Live Work",
+    re.I,
+)
+BOARD_ACTIVATION = re.compile(r"(?:^|\s)\$muster-board\b", re.I)
+DEACTIVATION = re.compile(r"(?:^|\s)\$muster-off\b", re.I)
+SECRET_PATTERNS = (
+    re.compile(r"(?i)((?:password|passwd|secret|token|api[_-]?key|authorization)\s*[:=]\s*)[^\s\"']+"),
+    re.compile(r"\b(?:sk|ghp|github_pat|xox[baprs])[-_][A-Za-z0-9_-]{12,}\b"),
+    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----"),
+)
 
 
 def read_event() -> dict[str, Any]:
@@ -37,9 +48,18 @@ def session_key(event: dict[str, Any]) -> str:
     return SAFE_ID.sub("-", raw)[:120] or "unknown"
 
 
+def redact_text(value: str) -> str:
+    text = value
+    for index, pattern in enumerate(SECRET_PATTERNS):
+        replacement = r"\1[REDACTED]" if index == 0 else "[REDACTED]"
+        text = pattern.sub(replacement, text)
+    return text
+
+
 def compact(value: Any) -> Any:
     if isinstance(value, str):
-        return value if len(value) <= MAX_VALUE_CHARS else value[:MAX_VALUE_CHARS] + "…"
+        redacted = redact_text(value)
+        return redacted if len(redacted) <= MAX_VALUE_CHARS else redacted[:MAX_VALUE_CHARS] + "…"
     if isinstance(value, list):
         return [compact(item) for item in value[:200]]
     if isinstance(value, dict):
@@ -89,6 +109,29 @@ def save_modes(root: Path, key: str, modes: dict[str, bool]) -> None:
     path.write_text(json.dumps(modes, indent=2) + "\n", encoding="utf-8")
 
 
+def tool_event_id(event: dict[str, Any]) -> str:
+    raw = str(
+        event.get("tool_use_id")
+        or event.get("tool_call_id")
+        or event.get("tool_id")
+        or ""
+    )
+    if raw:
+        return SAFE_ID.sub("-", raw)[:160]
+    stable = json.dumps(
+        {
+            "turn": event.get("turn_id"),
+            "tool": event.get("tool_name"),
+            "input": compact(event.get("tool_input")),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    import hashlib
+
+    return "tool-" + hashlib.sha256(stable.encode("utf-8")).hexdigest()[:24]
+
+
 def append_event(root: Path, key: str, payload: dict[str, Any]) -> None:
     path = root / "events" / f"{key}.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -121,9 +164,11 @@ def main() -> int:
 
     if event_name == "UserPromptSubmit":
         prompt = str(event.get("prompt") or "")
+        previous = load_modes(root, key)
+        disabled = bool(DEACTIVATION.search(prompt))
         modes = {
-            "live": bool(re.search(r"(?:^|\s)\$muster-live\b", prompt, re.I)),
-            "board": bool(re.search(r"(?:^|\s)\$muster-board\b", prompt, re.I)),
+            "live": False if disabled else previous["live"] or bool(ACTIVATION.search(prompt)),
+            "board": False if disabled else previous["board"] or bool(BOARD_ACTIVATION.search(prompt)),
         }
         save_modes(root, key, modes)
         append_event(
@@ -140,7 +185,8 @@ def main() -> int:
         instructions: list[str] = []
         if modes["live"]:
             instructions.append(
-                "Muster Live is explicitly active for this turn. Preserve native command output and edit events. "
+                "Muster Live is active for this task. Before other tool work, call muster_render_activity once so its live timeline remains visible. "
+                "Preserve native command output and edit events. "
                 "After every file mutation, call muster_render_full_file for every changed text file so the entire file is visible."
             )
         if modes["board"]:
@@ -153,7 +199,13 @@ def main() -> int:
         return 0
 
     modes = load_modes(root, key)
+    if not modes.get("live") and not modes.get("board"):
+        return 0
+    if "muster_render_activity" in str(event.get("tool_name") or ""):
+        return 0
     changed = git_changed_files(cwd) if event_name == "PostToolUse" else []
+    phase = "before" if event_name == "PreToolUse" else "after"
+    status = "running" if phase == "before" else "completed"
     append_event(
         root,
         key,
@@ -161,6 +213,9 @@ def main() -> int:
             "at": dt.datetime.now(dt.timezone.utc).isoformat(),
             "event": event_name,
             "turnId": event.get("turn_id"),
+            "activityId": tool_event_id(event),
+            "phase": phase,
+            "status": status,
             "cwd": cwd,
             "toolName": event.get("tool_name"),
             "toolInput": compact(event.get("tool_input")),
@@ -169,6 +224,13 @@ def main() -> int:
             "modes": modes,
         },
     )
+
+    if modes.get("live") and event_name == "PreToolUse":
+        context_output(
+            event_name,
+            "Muster Live recorded this action before execution. Keep the live activity surface open; it will update from the post-tool event.",
+        )
+        return 0
 
     if modes.get("live") and changed:
         paths = ", ".join(changed)

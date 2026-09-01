@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   createBoard,
+  readActivityTimeline,
   readFullFileSnapshot,
   transitionBoard,
 } from "../server/core.mjs";
@@ -73,4 +74,27 @@ test("requires one writer and worktree for running and evidence for review", () 
   transitionBoard(board, { taskId: "M-001", to: "done", evidence: { kind: "human-review", summary: "review accepted" } });
   assert.equal(board.tasks[0].status, "done");
   assert.equal(board.tasks[0].evidence.length, 2);
+});
+
+test("merges pre and post hook records into one live activity item", async () => {
+  const root = await mkdtemp(join(tmpdir(), "muster-activity-data-"));
+  const workspace = await mkdtemp(join(tmpdir(), "muster-activity-workspace-"));
+  await mkdir(join(root, "events"), { recursive: true });
+  await writeFile(join(root, "events", "session.jsonl"), [
+    JSON.stringify({ at: "2026-09-01T10:00:00Z", event: "PreToolUse", activityId: "tool-1", phase: "before", status: "running", cwd: workspace, toolName: "Bash", toolInput: { command: "npm test" } }),
+    JSON.stringify({ at: "2026-09-01T10:00:02Z", event: "PostToolUse", activityId: "tool-1", phase: "after", status: "completed", cwd: workspace, toolName: "Bash", toolInput: { command: "npm test" }, toolResponse: "12 passed", changedFiles: ["src/demo.ts"] }),
+  ].join("\n") + "\n", "utf8");
+  const previous = process.env.PLUGIN_DATA;
+  process.env.PLUGIN_DATA = root;
+  try {
+    const activity = await readActivityTimeline(workspace);
+    assert.equal(activity.kind, "activity");
+    assert.equal(activity.items.length, 1);
+    assert.equal(activity.items[0].status, "completed");
+    assert.equal(activity.items[0].command, "npm test");
+    assert.equal(activity.items[0].output, "12 passed");
+    assert.equal(activity.items[0].durationMs, 2000);
+  } finally {
+    if (previous === undefined) delete process.env.PLUGIN_DATA; else process.env.PLUGIN_DATA = previous;
+  }
 });
