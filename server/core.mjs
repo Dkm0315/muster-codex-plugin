@@ -68,8 +68,8 @@ export async function readFullFileSnapshot(cwdInput, pathInput) {
 
   const [beforeResult, patchResult, statsResult, treeResult, untrackedResult] = await Promise.all([
     git(target.cwd, ["show", `HEAD:${target.relativePath}`]),
-    git(target.cwd, ["diff", "--no-ext-diff", "--", target.relativePath]),
-    git(target.cwd, ["diff", "--numstat", "--", target.relativePath]),
+    git(target.cwd, ["diff", "HEAD", "--no-ext-diff", "--", target.relativePath]),
+    git(target.cwd, ["diff", "HEAD", "--numstat", "--", target.relativePath]),
     git(target.cwd, ["ls-files"]),
     git(target.cwd, ["ls-files", "--others", "--exclude-standard"]),
   ]);

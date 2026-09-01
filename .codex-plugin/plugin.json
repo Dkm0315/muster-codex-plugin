@@ -1,7 +1,7 @@
 {
   "name": "muster-codex-plugin",
-  "version": "0.1.0",
-  "description": "Show full-file live change context and an evidence-backed Kanban during Codex work without patching the Codex app.",
+  "version": "0.2.0",
+  "description": "Show live terminal activity, complete-file change context, and an evidence-backed Kanban in Codex without patching the app.",
   "author": {
     "name": "Dhairya Marwaha",
     "url": "https://github.com/Dkm0315"
@@ -21,7 +21,7 @@
   "interface": {
     "displayName": "Muster Live Work",
     "shortDescription": "See complete files and coordinate agent work",
-    "longDescription": "Muster Live Work adds explicit-only Codex skills for full-file change visibility and evidence-backed task orchestration. It observes local tool events only while its skills are tagged, stores state outside repositories, and never patches the Codex app or existing threads.",
+    "longDescription": "Muster Live Work adds Codex skills for full-file change visibility and evidence-backed task orchestration, plus an optional local companion for existing pinned tasks. It stores state outside repositories and never patches the signed Codex app, task history, or updater.",
     "developerName": "Dhairya Marwaha",
     "category": "Developer Tools",
     "capabilities": [

@@ -1,14 +1,17 @@
 {
   "name": "muster-codex-plugin",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Muster live-file and evidence-backed Kanban plugin for Codex.",
   "scripts": {
     "build": "esbuild server/index.mjs --bundle --platform=node --format=esm --target=node20 --outfile=dist/server.mjs",
+    "companion:demo": "node companion/injector.mjs --port 9223 --demo",
+    "companion:run": "node companion/injector.mjs --port 9223",
+    "companion:launch": "node companion/launcher.mjs",
     "preview:ui": "node scripts/preview_ui.mjs",
     "test": "node --test test/*.test.mjs",
-    "check": "node --check server/index.mjs && node --check dist/server.mjs && python3 -m py_compile scripts/observe_hook.py",
+    "check": "node --check server/index.mjs && node --check dist/server.mjs && node --check companion/injector.mjs && node --check companion/launcher.mjs && node --check companion/renderer.js && python3 -m py_compile scripts/observe_hook.py",
     "validate": "npm run build && npm run check && npm test"
   },
   "dependencies": {
