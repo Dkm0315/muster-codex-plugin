@@ -5,6 +5,7 @@
 When `$muster-live` or the Muster Live Work plugin is explicitly tagged:
 
 1. `muster_render_activity` opens before other tool work and polls the local event ledger while the task runs.
+   The initial activity surface must be rendered before the first terminal, tool, or skill action so pending work is visible before execution begins.
 2. Every terminal command, tool, and skill invocation is persisted in `PreToolUse` with `running` state before execution.
 3. `PostToolUse` supplies bounded, redacted output, completion time, duration and changed-file evidence.
 4. Native Codex narration, commands, stdout, stderr, exit status, and edit events remain visible in chronological order.
