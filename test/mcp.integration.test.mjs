@@ -69,6 +69,9 @@ test("MCP server exposes render and board tools with UI resources", async () => 
     assert.match(ui.contents[0].text, /Cards move from observed events/);
     assert.match(ui.contents[0].text, /Live execution/);
     assert.match(ui.contents[0].text, /muster_render_activity/);
+    assert.match(ui.contents[0].text, /setInterval/);
+    assert.match(ui.contents[0].text, /activity-live/);
+    assert.match(ui.contents[0].text, /Proposed input, output and evidence/);
   } finally {
     await client.close();
   }

@@ -113,6 +113,20 @@ function parseNumstat(value) {
   };
 }
 
+function addedFilePatch(path, working) {
+  const content = working.endsWith("\n") ? working.slice(0, -1) : working;
+  const lines = content ? content.split("\n") : [];
+  return [
+    `diff --git a/${path} b/${path}`,
+    "new file mode 100644",
+    "--- /dev/null",
+    `+++ b/${path}`,
+    `@@ -0,0 +1,${lines.length} @@`,
+    ...lines.map((line) => `+${line}`),
+    "",
+  ].join("\n");
+}
+
 export async function readFullFileSnapshot(cwdInput, pathInput) {
   const target = await resolveWorkspaceFile(cwdInput, pathInput);
   const working = await readFile(target.absolutePath, "utf8");
@@ -126,12 +140,16 @@ export async function readFullFileSnapshot(cwdInput, pathInput) {
     git(target.cwd, ["ls-files", "--others", "--exclude-standard"]),
   ]);
 
+  const untracked = String(untrackedResult.stdout || "").split("\n").map((line) => line.trim()).filter(Boolean);
+  const isUntracked = untracked.includes(target.relativePath);
   const before = beforeResult.ok ? String(beforeResult.stdout) : "";
-  const patch = patchResult.ok ? String(patchResult.stdout) : "";
-  const stats = statsResult.ok && String(statsResult.stdout).trim()
+  const patch = isUntracked ? addedFilePatch(target.relativePath, working) : patchResult.ok ? String(patchResult.stdout) : "";
+  const stats = isUntracked
+    ? { added: working ? (working.endsWith("\n") ? working.slice(0, -1) : working).split("\n").length : 0, deleted: 0 }
+    : statsResult.ok && String(statsResult.stdout).trim()
     ? parseNumstat(String(statsResult.stdout))
     : { added: 0, deleted: 0 };
-  const tree = [String(treeResult.stdout || ""), String(untrackedResult.stdout || "")]
+  const tree = [String(treeResult.stdout || ""), untracked.join("\n")]
     .join("\n")
     .split("\n")
     .map((line) => line.trim())

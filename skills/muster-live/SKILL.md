@@ -10,9 +10,13 @@ Make the current Codex turn teachable and reviewable without changing its permis
 ## Required behavior
 
 - Preserve native Codex narration, command executions, stdout, stderr, exit status, and inline change events in chronological order. Never replace them with only a summary.
-- At the beginning of an activated task, call `muster_render_activity` with the active workspace root before any other terminal, tool, or skill work. Keep this MCP App surface open; it polls the plugin event ledger while work runs.
+- At the beginning of an activated task, call `muster_render_activity` with the active workspace root so terminal, tool and skill history remains available.
 - Every terminal command, tool call, and skill invocation must be recorded by `PreToolUse` before execution and completed by `PostToolUse` with bounded redacted output. Never defer visibility until the end of the command.
-- After any file mutation, call `muster_render_full_file` for every changed file. Pass the current workspace root and repository-relative path.
+- Treat Git as ordinary terminal work: every `git status`, diff, commit, fetch, rebase, push, and inspection command must appear in the same live timeline before it executes.
+- Edit exactly one file per `apply_patch` call. Immediately call `muster_render_full_file` for that file in its own separate tool call before editing another file.
+- Never batch multiple file mutations in one patch and never batch multiple `muster_render_full_file` calls inside one orchestration call. The host must receive one visible file result at a time in chronological order.
+- New untracked text files are rendered automatically and must not require staging or `git add -N`.
+- After commands, tests, commits, and task completion, keep the activity history available and re-render the board when status changes.
 - Render the full file, not only a changed hunk. The tool returns the working file, the `HEAD` version when available, diff statistics, and a codebase tree for Working, Before, and Split inspection.
 - When a shell command may have edited files, use the changed-file list supplied by the Muster hook context. If it is absent, inspect `git status --short` and render every affected text file.
 - Keep working normally under the user's existing permission mode. This skill adds visibility; it must not request stricter permissions, add approval prompts, or prevent edits.

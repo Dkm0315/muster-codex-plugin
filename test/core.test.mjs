@@ -40,6 +40,18 @@ test("reads complete before and working files with diff stats", async () => {
   assert.equal(snapshot.truncated, false);
 });
 
+test("renders a new untracked text file as an added-file diff without staging", async () => {
+  const root = await fixtureRepo();
+  await writeFile(join(root, "src", "new-file.ts"), "export const visible = true;\n", "utf8");
+  const snapshot = await readFullFileSnapshot(root, "src/new-file.ts");
+  assert.equal(snapshot.before, "");
+  assert.equal(snapshot.stats.added, 1);
+  assert.equal(snapshot.stats.deleted, 0);
+  assert.match(snapshot.patch, /--- \/dev\/null/);
+  assert.match(snapshot.patch, /\+export const visible = true;/);
+  assert.equal(git(root, "diff", "--cached", "--name-only").trim(), "");
+});
+
 test("refuses secret files and paths outside the workspace", async () => {
   const root = await fixtureRepo();
   await writeFile(join(root, ".env"), "SECRET=value\n", "utf8");

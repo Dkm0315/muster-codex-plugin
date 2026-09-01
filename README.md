@@ -2,7 +2,7 @@
 
 Muster Live Work is an isolated Codex plugin for two explicit workflows:
 
-- `$muster-live` opens a polling execution timeline before work starts, records every tool in `PreToolUse`, completes it from `PostToolUse`, and renders the **complete changed file** after edits.
+- `$muster-live` records tools through pre/post hooks and enforces a visible one-file edit cycle: edit one file, render that complete file, then continue.
 - `$muster-board` creates an evidence-backed Kanban from tasks mentioned in the prompt, or an empty board when no tasks are mentioned.
 
 The plugin does not patch the Codex app, rewrite Codex configuration, modify rollout files, migrate threads, or write state into repositories.
@@ -67,7 +67,7 @@ $muster-live $muster-board Implement these independent tasks visibly and keep th
 
 The plugin uses the standard MCP Apps UI returned by MCP tools. Codex controls whether that UI appears inline or in another supported presentation. The plugin deliberately does not patch native sidebars or renderer internals, keeping it resilient to Codex updates.
 
-The live timeline must be opened once at the beginning of an activated task. Its MCP App then polls the local hook ledger every 750 ms. `PreToolUse` blocks tool execution long enough to persist the pending record, so the command appears before its post-execution output is available.
+While Muster Live is active, `PreToolUse` rejects multi-file `apply_patch` input. Every successful file mutation must be followed by one separate `muster_render_full_file` call before the next edit. Git is captured like any other terminal tool, and newly created text files receive a synthetic added-file diff without staging them.
 
 ## Development
 

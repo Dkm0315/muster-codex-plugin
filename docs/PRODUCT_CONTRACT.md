@@ -4,13 +4,15 @@
 
 When `$muster-live` or the Muster Live Work plugin is explicitly tagged:
 
-1. `muster_render_activity` opens before other tool work and polls the local event ledger while the task runs.
-   The initial activity surface must be rendered before the first terminal, tool, or skill action so pending work is visible before execution begins.
+1. `muster_render_activity` keeps terminal, tool and skill history available for the activated task.
 2. Every terminal command, tool, and skill invocation is persisted in `PreToolUse` with `running` state before execution.
 3. `PostToolUse` supplies bounded, redacted output, completion time, duration and changed-file evidence.
+   Git commands follow the same pre/post lifecycle as every other terminal action.
 4. Native Codex narration, commands, stdout, stderr, exit status, and edit events remain visible in chronological order.
-5. After a file mutation, the complete changed file is rendered automatically in the conversation through the standard MCP App result.
-6. Unchanged code remains visible. Removed and added lines are decorated inline. Working, Before, and Split views are available.
+5. One `apply_patch` call may mutate exactly one file. A multi-file patch is denied before execution.
+6. After each mutation, that file is rendered in a separate `muster_render_full_file` call before another edit begins. Renderer calls are never batched.
+   Removed and added lines are decorated inline; Working, Before, and Split views remain available.
+   Newly created untracked text files render as additions without staging or index mutation.
 7. Binary, secret, ignored credential, out-of-workspace, and oversized files fail closed.
 8. Activation persists for the current task until `$muster-off`; unrelated tasks remain dormant.
 9. The plugin does not add approvals or change the user's permission mode.

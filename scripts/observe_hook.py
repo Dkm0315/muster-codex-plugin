@@ -152,6 +152,30 @@ def context_output(event_name: str, text: str) -> None:
     )
 
 
+def deny_tool(event_name: str, reason: str) -> None:
+    print(
+        json.dumps(
+            {
+                "hookSpecificOutput": {
+                    "hookEventName": event_name,
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": reason,
+                }
+            }
+        )
+    )
+
+
+def patch_file_count(event: dict[str, Any]) -> int:
+    if str(event.get("tool_name") or "").lower() != "apply_patch":
+        return 0
+    tool_input = event.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return 0
+    patch = str(tool_input.get("command") or tool_input.get("patch") or "")
+    return len(re.findall(r"^\*\*\* (?:Add|Update|Delete) File:", patch, re.M))
+
+
 def main() -> int:
     event = read_event()
     if not event:
@@ -187,7 +211,8 @@ def main() -> int:
             instructions.append(
                 "Muster Live is active for this task. Before other tool work, call muster_render_activity once so its live timeline remains visible. "
                 "Preserve native command output and edit events. "
-                "After every file mutation, call muster_render_full_file for every changed text file so the entire file is visible."
+                "Edit exactly one file per apply_patch call. Immediately afterward, call muster_render_full_file for that one file in a separate tool call. "
+                "Never batch file edits or renderer calls."
             )
         if modes["board"]:
             instructions.append(
@@ -201,7 +226,13 @@ def main() -> int:
     modes = load_modes(root, key)
     if not modes.get("live") and not modes.get("board"):
         return 0
-    if "muster_render_activity" in str(event.get("tool_name") or ""):
+    if "muster_render_" in str(event.get("tool_name") or ""):
+        return 0
+    if event_name == "PreToolUse" and patch_file_count(event) > 1:
+        deny_tool(
+            event_name,
+            "Muster Live permits exactly one file per apply_patch call. Split this patch by file, apply one file, render it, then continue to the next file.",
+        )
         return 0
     changed = git_changed_files(cwd) if event_name == "PostToolUse" else []
     phase = "before" if event_name == "PreToolUse" else "after"
@@ -236,8 +267,8 @@ def main() -> int:
         paths = ", ".join(changed)
         context_output(
             event_name,
-            "Muster Live observed changed files: " + paths + ". Immediately call muster_render_full_file for each changed text file. "
-            "Do not hide or replace the native command output or edit event.",
+            "Muster Live observed changed files: " + paths + ". Call muster_render_full_file once per changed text file, using separate sequential tool calls. "
+            "Do not batch renderer calls. Do not begin another edit until every changed file has rendered.",
         )
     return 0
 

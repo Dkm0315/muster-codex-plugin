@@ -212,18 +212,22 @@
       };
     }
 
-    function renderActivity(value) {
-      const items = value.items || [];
-      const body = items.map((item, index) => {
+    function activityBody(items, limit = 200) {
+      return items.slice(0, limit).map((item, index) => {
         const command = item.command || item.input || "No input reported";
         const output = item.output || (item.status === "running" ? "Waiting for output…" : "No output reported.");
         const timing = item.durationMs === null ? item.status : `${item.status} · ${item.durationMs} ms`;
         const files = (item.changedFiles || []).map((path) => `<code>${escapeHtml(path)}</code>`).join("");
         return `<article class="activity-item ${item.status === "running" ? "running" : ""}">
           <div class="activity-summary"><span class="activity-tool">${escapeHtml(item.toolName)}</span><span class="activity-command">${escapeHtml(command)}</span><span class="activity-state">${escapeHtml(timing)}</span></div>
-          <details class="activity-detail" ${item.status === "running" || index === 0 ? "open" : ""}><summary>Output and evidence</summary><pre>${escapeHtml(output)}</pre>${files ? `<div class="activity-files">${files}</div>` : ""}</details>
+          <details class="activity-detail" ${item.status === "running" || index === 0 ? "open" : ""}><summary>Proposed input, output and evidence</summary><pre>${escapeHtml(item.input || command)}</pre><pre>${escapeHtml(output)}</pre>${files ? `<div class="activity-files">${files}</div>` : ""}</details>
         </article>`;
       }).join("") || `<div class="empty">No execution events yet. The next command, tool, or skill will appear before it runs.</div>`;
+    }
+
+    function renderActivity(value) {
+      const items = value.items || [];
+      const body = activityBody(items);
       root.innerHTML = `<section class="muster-shell"><header class="activity-toolbar"><strong>Live execution</strong><span class="muster-muted">${items.length} events</span><span class="spacer"></span><span class="activity-live">observing</span></header><div class="activity-list">${body}</div></section>`;
       if (!activityTimer) activityTimer = setInterval(async () => {
         try {

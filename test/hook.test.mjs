@@ -69,9 +69,21 @@ test("hooks remain dormant without tags and activate only for the tagged session
     cwd: workspace,
     hook_event_name: "PreToolUse",
     tool_name: "Bash",
-    tool_input: { command: "echo password=super-secret" },
+    tool_input: { command: "git status --short && echo password=super-secret" },
   });
   assert.match(before, /recorded this action before execution/);
+
+  const denied = runHook(codexHome, {
+    session_id: "session-live",
+    turn_id: "turn-3",
+    tool_use_id: "tool-multi-file",
+    cwd: workspace,
+    hook_event_name: "PreToolUse",
+    tool_name: "apply_patch",
+    tool_input: { command: "*** Begin Patch\n*** Update File: one.ts\n*** Update File: two.ts\n*** End Patch" },
+  });
+  assert.match(denied, /"permissionDecision": "deny"/);
+  assert.match(denied, /exactly one file per apply_patch/);
 
   await writeFile(join(workspace, "src", "demo.ts"), "export const value = 2;\n", "utf8");
   const observed = runHook(codexHome, {
@@ -89,6 +101,7 @@ test("hooks remain dormant without tags and activate only for the tagged session
   assert.match(events, /"changedFiles":\["src\/demo\.ts"\]/);
   assert.match(events, /"phase":"before"/);
   assert.match(events, /"status":"running"/);
+  assert.match(events, /git status --short/);
   assert.doesNotMatch(events, /super-secret|unsafe-value/);
   assert.match(events, /\[REDACTED\]/);
 });
