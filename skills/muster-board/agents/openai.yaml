@@ -1,0 +1,7 @@
+interface:
+  display_name: "Muster Board"
+  short_description: "Create an evidence-backed work board"
+  brand_color: "#151515"
+  default_prompt: "Use $muster-board to generate a dependency-aware Kanban from the tasks in this prompt."
+policy:
+  allow_implicit_invocation: false

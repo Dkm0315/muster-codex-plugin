@@ -1,0 +1,28 @@
+{
+  "description": "Turn-scoped observation for explicitly tagged Muster skills.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/scripts/observe_hook.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/scripts/observe_hook.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

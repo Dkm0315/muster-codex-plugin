@@ -1,0 +1,46 @@
+{
+  "name": "muster-codex-plugin",
+  "version": "0.1.0",
+  "description": "Show full-file live change context and an evidence-backed Kanban during Codex work without patching the Codex app.",
+  "author": {
+    "name": "Dhairya Marwaha",
+    "url": "https://github.com/Dkm0315"
+  },
+  "homepage": "https://github.com/Dkm0315/muster-codex-plugin",
+  "repository": "https://github.com/Dkm0315/muster-codex-plugin",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "live-diff",
+    "full-file",
+    "kanban",
+    "observability",
+    "muster"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Muster Live Work",
+    "shortDescription": "See complete files and coordinate agent work",
+    "longDescription": "Muster Live Work adds explicit-only Codex skills for full-file change visibility and evidence-backed task orchestration. It observes local tool events only while its skills are tagged, stores state outside repositories, and never patches the Codex app or existing threads.",
+    "developerName": "Dhairya Marwaha",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read"
+    ],
+    "websiteURL": "https://github.com/Dkm0315/muster-codex-plugin",
+    "defaultPrompt": [
+      "$muster-live Show every command and the complete file after each edit.",
+      "$muster-board Create a board from the tasks in this prompt.",
+      "$muster-live $muster-board Work visibly and coordinate independent tasks."
+    ],
+    "brandColor": "#151515",
+    "composerIcon": "./assets/muster-mark.png",
+    "logo": "./assets/muster-mark.png",
+    "screenshots": [
+      "./assets/live-file-mockup.png",
+      "./assets/kanban-mockup.png"
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

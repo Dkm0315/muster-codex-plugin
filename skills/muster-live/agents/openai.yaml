@@ -1,0 +1,7 @@
+interface:
+  display_name: "Muster Live"
+  short_description: "Show commands and complete changed files"
+  brand_color: "#151515"
+  default_prompt: "Use $muster-live to keep every command visible and render the complete file after each edit."
+policy:
+  allow_implicit_invocation: false

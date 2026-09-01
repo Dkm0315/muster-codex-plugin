@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "muster-live-work": {
+      "command": "node",
+      "args": ["./dist/server.mjs"],
+      "cwd": ".",
+      "env_vars": ["CODEX_HOME"]
+    }
+  }
+}
