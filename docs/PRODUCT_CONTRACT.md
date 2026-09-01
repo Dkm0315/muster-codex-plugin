@@ -12,6 +12,7 @@ When `$muster-live` or the Muster Live Work plugin is explicitly tagged:
 5. One `apply_patch` call may mutate exactly one file. A multi-file patch is denied before execution.
 6. After each mutation, that file is rendered in a separate `muster_render_full_file` call before another edit begins. Renderer calls are never batched.
    Removed and added lines are decorated inline; Working, Before, and Split views remain available.
+   Repeated renders accumulate by workspace: every previously rendered path remains visible as a separate file block when the next file is appended.
    Newly created untracked text files render as additions without staging or index mutation.
 7. Binary, secret, ignored credential, out-of-workspace, and oversized files fail closed.
 8. Activation persists for the current task until `$muster-off`; unrelated tasks remain dormant.

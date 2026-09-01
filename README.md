@@ -68,6 +68,7 @@ $muster-live $muster-board Implement these independent tasks visibly and keep th
 The plugin uses the standard MCP Apps UI returned by MCP tools. Codex controls whether that UI appears inline or in another supported presentation. The plugin deliberately does not patch native sidebars or renderer internals, keeping it resilient to Codex updates.
 
 While Muster Live is active, `PreToolUse` rejects multi-file `apply_patch` input. Every successful file mutation must be followed by one separate `muster_render_full_file` call before the next edit. Git is captured like any other terminal tool, and newly created text files receive a synthetic added-file diff without staging them.
+Because Codex reuses one MCP App instance for repeated file renders, the plugin accumulates rendered paths in workspace state. Each subsequent render returns every prior file as a separate complete green/red block and appends the newest file instead of replacing the previous view.
 
 ## Development
 

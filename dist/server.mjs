@@ -21231,6 +21231,32 @@ async function readActivityTimeline(cwdInput) {
 function boardKey(cwd) {
   return createHash("sha256").update(resolve(cwd)).digest("hex").slice(0, 20);
 }
+async function activateWorkspace(cwdInput) {
+  const cwd = resolve(cwdInput);
+  const directory = resolve(pluginDataRoot(), "workspaces");
+  await mkdir(directory, { recursive: true });
+  await writeFile(resolve(directory, `${boardKey(cwd)}.json`), JSON.stringify({ active: true, cwd, updatedAt: (/* @__PURE__ */ new Date()).toISOString() }, null, 2) + "\n", "utf8");
+  return cwd;
+}
+function renderHistoryPath(cwd) {
+  return resolve(pluginDataRoot(), "renders", `${boardKey(cwd)}.json`);
+}
+async function appendFileRender(cwdInput, pathInput) {
+  const snapshot = await readFullFileSnapshot(cwdInput, pathInput);
+  const path = renderHistoryPath(snapshot.cwd);
+  let previous = [];
+  try {
+    const stored = JSON.parse(await readFile(path, "utf8"));
+    previous = Array.isArray(stored.files) ? stored.files : [];
+  } catch {
+    previous = [];
+  }
+  const files = [...previous.filter((file) => file.path !== snapshot.path), snapshot].slice(-50);
+  while (files.length > 1 && Buffer.byteLength(JSON.stringify(files)) > 35e5) files.shift();
+  await mkdir(resolve(pluginDataRoot(), "renders"), { recursive: true });
+  await writeFile(path, JSON.stringify({ cwd: snapshot.cwd, updatedAt: (/* @__PURE__ */ new Date()).toISOString(), files }) + "\n", "utf8");
+  return { kind: "file-history", cwd: snapshot.cwd, activePath: snapshot.path, files };
+}
 async function git(cwd, args, options = {}) {
   try {
     const result = await execFileAsync("git", args, {
@@ -21437,6 +21463,7 @@ server.registerTool(
     _meta: renderMeta("Opening live execution\u2026", "Live execution opened.")
   },
   async ({ cwd }) => {
+    await activateWorkspace(cwd);
     const activity = await readActivityTimeline(cwd);
     return {
       structuredContent: activity,
@@ -21458,10 +21485,11 @@ server.registerTool(
   },
   async ({ cwd, path }) => {
     try {
-      const snapshot = await readFullFileSnapshot(cwd, path);
+      const history = await appendFileRender(cwd, path);
+      const snapshot = history.files.at(-1);
       return {
-        structuredContent: snapshot,
-        content: [{ type: "text", text: `Rendered the complete ${snapshot.lineCount}-line file ${snapshot.path} with +${snapshot.stats.added} -${snapshot.stats.deleted}.` }]
+        structuredContent: history,
+        content: [{ type: "text", text: `Rendered the complete ${snapshot.lineCount}-line file ${snapshot.path} with +${snapshot.stats.added} -${snapshot.stats.deleted}; ${history.files.length} file block(s) remain visible.` }]
       };
     } catch (error2) {
       const message = error2 instanceof Error ? error2.message : String(error2);

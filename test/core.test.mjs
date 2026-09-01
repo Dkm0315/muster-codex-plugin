@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import {
+  activateWorkspace,
+  appendFileRender,
   createBoard,
   readActivityTimeline,
   readFullFileSnapshot,
@@ -50,6 +52,25 @@ test("renders a new untracked text file as an added-file diff without staging", 
   assert.match(snapshot.patch, /--- \/dev\/null/);
   assert.match(snapshot.patch, /\+export const visible = true;/);
   assert.equal(git(root, "diff", "--cached", "--name-only").trim(), "");
+});
+
+test("keeps separately rendered files as separate blocks instead of replacing the prior file", async () => {
+  const dataRoot = await mkdtemp(join(tmpdir(), "muster-render-history-"));
+  const root = await fixtureRepo();
+  await writeFile(join(root, "src", "observer.ts"), "export const debounce = 90;\n", "utf8");
+  await writeFile(join(root, "src", "second.ts"), "export const second = true;\n", "utf8");
+  const previous = process.env.PLUGIN_DATA;
+  process.env.PLUGIN_DATA = dataRoot;
+  try {
+    const first = await appendFileRender(root, "src/observer.ts");
+    assert.equal(first.files.length, 1);
+    const second = await appendFileRender(root, "src/second.ts");
+    assert.equal(second.kind, "file-history");
+    assert.deepEqual(second.files.map((file) => file.path), ["src/observer.ts", "src/second.ts"]);
+    assert.equal(second.activePath, "src/second.ts");
+  } finally {
+    if (previous === undefined) delete process.env.PLUGIN_DATA; else process.env.PLUGIN_DATA = previous;
+  }
 });
 
 test("refuses secret files and paths outside the workspace", async () => {
@@ -106,6 +127,20 @@ test("merges pre and post hook records into one live activity item", async () =>
     assert.equal(activity.items[0].command, "npm test");
     assert.equal(activity.items[0].output, "12 passed");
     assert.equal(activity.items[0].durationMs, 2000);
+  } finally {
+    if (previous === undefined) delete process.env.PLUGIN_DATA; else process.env.PLUGIN_DATA = previous;
+  }
+});
+
+test("activates a workspace in plugin state for post-restart hook observation", async () => {
+  const dataRoot = await mkdtemp(join(tmpdir(), "muster-workspace-active-"));
+  const workspace = await mkdtemp(join(tmpdir(), "muster-workspace-active-repo-"));
+  const previous = process.env.PLUGIN_DATA;
+  process.env.PLUGIN_DATA = dataRoot;
+  try {
+    assert.equal(await activateWorkspace(workspace), workspace);
+    const files = await import("node:fs/promises").then(({ readdir }) => readdir(join(dataRoot, "workspaces")));
+    assert.equal(files.length, 1);
   } finally {
     if (previous === undefined) delete process.env.PLUGIN_DATA; else process.env.PLUGIN_DATA = previous;
   }

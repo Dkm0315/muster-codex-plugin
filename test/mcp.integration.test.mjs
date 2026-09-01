@@ -48,8 +48,9 @@ test("MCP server exposes render and board tools with UI resources", async () => 
       name: "muster_render_full_file",
       arguments: { cwd: workspace, path: "src/demo.ts" },
     });
-    assert.equal(fileResult.structuredContent.kind, "file");
-    assert.match(fileResult.structuredContent.working, /value = 2/);
+    assert.equal(fileResult.structuredContent.kind, "file-history");
+    assert.equal(fileResult.structuredContent.files.length, 1);
+    assert.match(fileResult.structuredContent.files[0].working, /value = 2/);
 
     await client.callTool({
       name: "muster_prepare_board",
@@ -72,6 +73,7 @@ test("MCP server exposes render and board tools with UI resources", async () => 
     assert.match(ui.contents[0].text, /setInterval/);
     assert.match(ui.contents[0].text, /activity-live/);
     assert.match(ui.contents[0].text, /Proposed input, output and evidence/);
+    assert.match(ui.contents[0].text, /Separate file block/);
   } finally {
     await client.close();
   }

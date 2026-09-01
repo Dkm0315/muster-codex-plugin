@@ -34,6 +34,10 @@
   .code-row.del { background: light-dark(#f7e3e3, #34191b); }
   .code-row.del code, .code-row.del .mark { color: light-dark(#873b3b, #e3b8ba); }
   .file-status { display: flex; align-items: center; gap: 8px; padding: 0 10px; border-top: 1px solid light-dark(#e5e5e5, #272727); color: light-dark(#666, #777); font-size: 11px; }
+  .file-history-stack { display: grid; gap: 12px; }
+  .file-history-card { overflow: hidden; border: 1px solid light-dark(#dedede, #303030); border-radius: 12px; background: light-dark(#fff, #0b0b0b); }
+  .file-history-card .file-stage { min-height: 220px; max-height: 560px; }
+  .file-history-card .code-list { min-width: 760px; }
   .tree { min-width: 0; overflow: auto; border-left: 1px solid light-dark(#e1e1e1, #292929); padding: 10px 7px; }
   .tree header { display: flex; justify-content: space-between; padding: 4px 7px 10px; color: light-dark(#555, #aaa); font-size: 12px; }
   .tree-row { width: 100%; overflow: hidden; padding: 5px 7px; border: 0; border-radius: 6px; background: transparent; text-align: left; text-overflow: ellipsis; white-space: nowrap; color: light-dark(#444, #aaa); font: 11px/1.4 "SFMono-Regular", Menlo, monospace; }
@@ -186,6 +190,18 @@
       }, 0);
     }
 
+    function renderFileHistory(value) {
+      root.innerHTML = `<div class="file-history-stack">${(value.files || []).map((file) => {
+        const stats = file.stats || { added: 0, deleted: 0 };
+        return `<section class="file-history-card" data-history-path="${escapeHtml(file.path)}"><header class="muster-toolbar"><strong>${escapeHtml(file.path)}</strong><span class="muster-muted">Complete file · ${file.lineCount} lines</span><span class="muster-stat-add">+${stats.added}</span><span class="muster-stat-del">−${stats.deleted}</span><span class="spacer"></span><span class="muster-muted">Post-edit</span></header><div class="file-stage"><div class="file-pane"><div class="code-list">${codeRows(file.working, "working", file.patch)}</div></div></div><div class="file-status">Separate file block · unchanged context preserved</div></section>`;
+      }).join("")}</div>`;
+      setTimeout(() => {
+        const active = root.querySelector(`[data-history-path="${CSS.escape(value.activePath || "")}"]`);
+        active?.scrollIntoView({ block: "start", behavior: "smooth" });
+        active?.querySelectorAll(".file-pane").forEach((pane) => { const changed = pane.querySelector(".add, .del"); if (changed) pane.scrollTop = Math.max(0, changed.offsetTop - 150); });
+      }, 0);
+    }
+
     const laneLabels = { backlog: "Backlog", ready: "Ready", running: "Running", review: "Review", done: "Done" };
     function renderBoard(value) {
       const byLane = Object.fromEntries(Object.keys(laneLabels).map((lane) => [lane, (value.tasks || []).filter((task) => task.status === lane)]));
@@ -240,6 +256,7 @@
     function render(value) {
       if (!value) { root.innerHTML = `<div class="muster-shell"><div class="muster-muted" style="padding:18px">Waiting for Muster data…</div></div>`; return; }
       if (value.kind === "file") renderFile(value);
+      else if (value.kind === "file-history") renderFileHistory(value);
       else if (value.kind === "board") renderBoard(value);
       else if (value.kind === "activity") renderActivity(value);
       else root.innerHTML = `<div class="muster-shell error">Unsupported Muster view.</div>`;

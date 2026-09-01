@@ -4,10 +4,11 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod/v3";
 import {
+  activateWorkspace,
+  appendFileRender,
   createBoard,
   loadBoard,
   readActivityTimeline,
-  readFullFileSnapshot,
   saveBoard,
   transitionBoard,
 } from "./core.mjs";
@@ -49,6 +50,7 @@ server.registerTool(
     _meta: renderMeta("Opening live execution…", "Live execution opened."),
   },
   async ({ cwd }) => {
+    await activateWorkspace(cwd);
     const activity = await readActivityTimeline(cwd);
     return {
       structuredContent: activity,
@@ -71,10 +73,11 @@ server.registerTool(
   },
   async ({ cwd, path }) => {
     try {
-      const snapshot = await readFullFileSnapshot(cwd, path);
+      const history = await appendFileRender(cwd, path);
+      const snapshot = history.files.at(-1);
       return {
-        structuredContent: snapshot,
-        content: [{ type: "text", text: `Rendered the complete ${snapshot.lineCount}-line file ${snapshot.path} with +${snapshot.stats.added} -${snapshot.stats.deleted}.` }],
+        structuredContent: history,
+        content: [{ type: "text", text: `Rendered the complete ${snapshot.lineCount}-line file ${snapshot.path} with +${snapshot.stats.added} -${snapshot.stats.deleted}; ${history.files.length} file block(s) remain visible.` }],
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

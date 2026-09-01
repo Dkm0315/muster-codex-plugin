@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -109,6 +110,26 @@ def save_modes(root: Path, key: str, modes: dict[str, bool]) -> None:
     path.write_text(json.dumps(modes, indent=2) + "\n", encoding="utf-8")
 
 
+def workspace_state_path(root: Path, cwd: str) -> Path:
+    canonical = os.path.abspath(os.path.expanduser(cwd))
+    key = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:20]
+    return root / "workspaces" / f"{key}.json"
+
+
+def workspace_active(root: Path, cwd: str) -> bool:
+    try:
+        value = json.loads(workspace_state_path(root, cwd).read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    return bool(value.get("active"))
+
+
+def set_workspace_active(root: Path, cwd: str, active: bool) -> None:
+    path = workspace_state_path(root, cwd)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"active": active, "cwd": os.path.abspath(os.path.expanduser(cwd))}, indent=2) + "\n", encoding="utf-8")
+
+
 def tool_event_id(event: dict[str, Any]) -> str:
     raw = str(
         event.get("tool_use_id")
@@ -127,8 +148,6 @@ def tool_event_id(event: dict[str, Any]) -> str:
         sort_keys=True,
         separators=(",", ":"),
     )
-    import hashlib
-
     return "tool-" + hashlib.sha256(stable.encode("utf-8")).hexdigest()[:24]
 
 
@@ -190,8 +209,13 @@ def main() -> int:
         prompt = str(event.get("prompt") or "")
         previous = load_modes(root, key)
         disabled = bool(DEACTIVATION.search(prompt))
+        explicit_live = bool(ACTIVATION.search(prompt))
+        if disabled:
+            set_workspace_active(root, cwd, False)
+        elif explicit_live:
+            set_workspace_active(root, cwd, True)
         modes = {
-            "live": False if disabled else previous["live"] or bool(ACTIVATION.search(prompt)),
+            "live": False if disabled else previous["live"] or explicit_live or workspace_active(root, cwd),
             "board": False if disabled else previous["board"] or bool(BOARD_ACTIVATION.search(prompt)),
         }
         save_modes(root, key, modes)
@@ -224,6 +248,8 @@ def main() -> int:
         return 0
 
     modes = load_modes(root, key)
+    if workspace_active(root, cwd):
+        modes["live"] = True
     if not modes.get("live") and not modes.get("board"):
         return 0
     if "muster_render_" in str(event.get("tool_name") or ""):

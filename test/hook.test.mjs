@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -117,4 +118,23 @@ test("plugin mention activates live observation without a dollar tag", async () 
     prompt: "[@Muster Live Work](plugin://muster-codex-plugin@personal) show this work",
   });
   assert.match(output, /muster_render_activity/);
+});
+
+test("workspace activation survives a new hook session after app restart", async () => {
+  const codexHome = await mkdtemp(join(tmpdir(), "muster-hook-restart-"));
+  const workspace = await mkdtemp(join(tmpdir(), "muster-hook-restart-workspace-"));
+  const key = createHash("sha256").update(workspace).digest("hex").slice(0, 20);
+  const directory = join(codexHome, "state", "plugins", "muster-codex-plugin", "workspaces");
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, `${key}.json`), JSON.stringify({ active: true, cwd: workspace }), "utf8");
+  const output = runHook(codexHome, {
+    session_id: "session-after-restart",
+    turn_id: "turn-after-restart",
+    tool_use_id: "tool-after-restart",
+    cwd: workspace,
+    hook_event_name: "PreToolUse",
+    tool_name: "Bash",
+    tool_input: { command: "git status --short" },
+  });
+  assert.match(output, /recorded this action before execution/);
 });
